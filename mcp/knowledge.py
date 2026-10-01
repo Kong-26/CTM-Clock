@@ -285,12 +285,26 @@ def answer(question: str, limit: int = 3, context: dict[str, Any] | None = None)
     context = context or {}
     matches = search(question, limit)
     normalized_question = _norm(question)
-    unspecified_white_coating = (
-        ("舌苔白" in normalized_question or "白苔" in normalized_question)
-        and not any(term in normalized_question for term in ("薄", "厚", "腻", "腻苔", "薄苔", "厚苔"))
+    thick_white_coating = (
+        ("thick white" in normalized_question or "white thick" in normalized_question)
+        or "舌苔厚白" in normalized_question
+        or "厚白苔" in normalized_question
     )
+    unspecified_white_coating = (
+        ("舌苔白" in normalized_question or "白苔" in normalized_question or "white coating" in normalized_question)
+        and not any(term in normalized_question for term in ("薄", "厚", "腻", "腻苔", "薄苔", "厚苔"))
+        and not any(term in normalized_question for term in ("thin", "thick", "greasy", "sticky", "peeled"))
+    )
+    if thick_white_coating:
+        matches = [entry for entry in matches if entry.get("id") == "sign-coating-thick-white"] or matches
     if unspecified_white_coating:
         matches = [entry for entry in matches if entry.get("sign_category") != "coating"]
+        if not matches:
+            matches = [
+                {**entry, "matched_terms": []}
+                for entry in ENTRIES
+                if entry.get("id") == "faq-what-tongue-shows"
+            ]
     urgent_terms = {"呼吸困难", "胸痛", "晕厥", "急诊", "emergency", "trouble breathing", "chest pain", "fainting"}
     urgent = any(term in _norm(question) for term in urgent_terms)
     if not matches:
@@ -367,6 +381,23 @@ def answer(question: str, limit: int = 3, context: dict[str, Any] | None = None)
         )
         answer_en = clarification_en + ("\n\n" + answer_en if answer_en else "")
         answer_cn = clarification_cn + ("\n\n" + answer_cn if answer_cn else "")
+    if thick_white_coating:
+        detail_en = (
+            "**How to make this more useful**: Check whether the coat is evenly thick or patchy, "
+            "moist/greasy or dry, and whether it scrapes away easily. Also note its location, "
+            "how long it has been present, recent illness or medicines, and symptoms such as "
+            "bloating, nausea, reflux, constipation or loose stools. In TCM, a thick white coat "
+            "may be discussed as a cold/damp or digestive clue, but those details and a clinical "
+            "assessment are needed; it does not identify a pattern or cause by itself."
+        )
+        detail_cn = (
+            "**怎样补充才更有用**：请观察舌苔是否均匀或斑片状、湿润油腻还是干燥、能否轻易刮去，"
+            "并记录分布部位、出现多久、近期是否生病或用药，以及腹胀、恶心、反流、便秘或腹泻等症状。"
+            "在中医语境中，厚白苔有时可作为寒湿或消化方面的线索，但仍需结合这些细节和临床评估，"
+            "不能单凭它确定证型或病因。"
+        )
+        answer_en = answer_en + "\n\n" + detail_en
+        answer_cn = answer_cn + "\n\n" + detail_cn
     if urgent:
         answer_en = "**Urgent safety note:** use local emergency services now if this is happening.\n\n" + answer_en
         answer_cn = "**紧急提示：**如正在发生这些危险症状，请立即使用当地急救服务。\n\n" + answer_cn
